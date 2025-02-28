@@ -119,8 +119,12 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, override_in
         image_path = os.path.join(images_folder, os.path.basename(extr.name))
         image_name = os.path.basename(image_path).split(".")[0]
         if not os.path.exists(image_path):
-            image_path = image_path.replace(".png", ".JPG") # fix for loading zhita_5k dataset
-        image = Image.open(image_path)
+            if '.png' in image_path:
+                image_path = image_path.replace(".png", ".JPG") # fix for loading zhita_5k dataset
+            elif '.JPG' in image_path:
+                image_path = image_path.replace(".JPG", ".png")
+        # image = Image.open(image_path)
+        image = None
         cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
                               image_path=image_path, image_name=image_name, width=width, height=height)
         cam_infos.append(cam_info)
@@ -182,6 +186,8 @@ def readColmapSceneInfo(args, override_intr=None):
     except:
         cameras_extrinsic_file = os.path.join(path, colmap_dir, "images.txt")
         cameras_intrinsic_file = os.path.join(path, colmap_dir, "cameras.txt")
+        if os.path.exists(cameras_intrinsic_file[:-4] + "_undistorted.txt"):
+            cameras_intrinsic_file = cameras_intrinsic_file[:-4] + "_undistorted.txt"
         cam_extrinsics = read_extrinsics_text(cameras_extrinsic_file)
         cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
 

@@ -2,9 +2,11 @@
 import os
 import numpy as np
 import cv2
+from PIL import Image
 from tqdm import tqdm
 from pathlib import Path
 from argparse import ArgumentParser
+from scene.colmap_loader import read_intrinsics_binary
 
 
 def read_intrinsics_text(path):
@@ -29,17 +31,25 @@ def read_intrinsics_text(path):
 
 def colmap_main(args):
     root_dir = args.path
-    camera_dir = Path(root_dir) / "colmap" / "cameras.txt"
+    camera_dir = Path(root_dir) / "sparse" / "0" / "cameras.bin"
     input_image_dir = Path(root_dir) / args.src
     out_image_dir = Path(root_dir) / args.dst
     
-    _, _, width, height, params = read_intrinsics_text(camera_dir)
+    cam_intrinsics = read_intrinsics_binary(camera_dir)
+    width = cam_intrinsics[1].width
+    height = cam_intrinsics[1].height
+    params = cam_intrinsics[1].params
     print(params)
     
-    fx = params[0]
-    fy = params[1]
-    cx = params[2]
-    cy = params[3]
+    # adjust fx, fy, cx, cy by the actual image size
+    ratio = 1 / float(input_image_dir.name[-1])
+    
+    fx = params[0] * ratio
+    fy = params[1] * ratio
+    cx = params[2] * ratio
+    cy = params[3] * ratio
+    width = int(width * ratio)
+    height = int(height * ratio)
     
     distortion_params = params[4:]
     kk = distortion_params
@@ -74,18 +84,29 @@ def colmap_main(args):
             mapx.T,
             mapy.T,
             interpolation=cv2.INTER_LINEAR,
-            borderMode=cv2.BORDER_REFLECT_101,
+            borderMode=cv2.BORDER_CONSTANT,
+            borderValue=(0, 0, 0)
         )
-        out_image_path = Path(out_image_dir) / frame
+        out_image_path = Path(out_image_dir) / frame.replace(".JPG", ".png") # rgba can not use .jpg
         out_image_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # generate valid region mask
+        mask = np.ones_like(undistorted_image[:, :, 0], dtype=np.uint8)*255
+        mask[mapx.T < 0] = 0
+        mask[mapx.T >= width] = 0
+        mask[mapy.T < 0] = 0
+        mask[mapy.T >= height] = 0
+        
+        # assign the alpha channel
+        undistorted_image = np.concatenate([undistorted_image, mask[:, :, None]], axis=2)
         cv2.imwrite(str(out_image_path), undistorted_image)
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument('--path', type=str, default="/mnt/data_ssd_4tb/Datasets/scannetpp_tiny/data/0a5c013435/dslr")
-    parser.add_argument('--src', type=str, default="resized_images")
-    parser.add_argument('--dst', type=str, default="image_undistorted_fisheye")
+    parser.add_argument('--path', type=str, default="/mnt/data_ssd_4tb/Datasets/zipnerf/fisheye/berlin/")
+    parser.add_argument('--src', type=str, default="images_4")
+    parser.add_argument('--dst', type=str, default="images_4_undistorted_fisheye")
     args = parser.parse_args()
     colmap_main(args)
 

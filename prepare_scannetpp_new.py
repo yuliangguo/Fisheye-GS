@@ -30,6 +30,7 @@ def read_intrinsics_text(path):
 def colmap_main(args):
     root_dir = args.path
     camera_dir = Path(root_dir) / "colmap" / "cameras.txt"
+    camera_dir_new = Path(root_dir) / "colmap" / "cameras_undistorted.txt"
     input_image_dir = Path(root_dir) / args.src
     out_image_dir = Path(root_dir) / args.dst
     
@@ -43,6 +44,18 @@ def colmap_main(args):
     
     distortion_params = params[4:]
     kk = distortion_params
+    
+    width_org = np.copy(width)
+    height_org =  np.copy(height)
+    width = 2010
+    height = 1340
+    
+    # write modified camera intrinsics in file
+    with open(camera_dir_new, 'w') as f:
+        f.write(f"# Camera list with one line of data per camera:\n")
+        f.write(f"#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n")
+        f.write(f"# Number of cameras: 1\n")
+        f.write(f"{1} OPENCV_FISHEYE {width} {height} {fx} {fy} {width//2} {height//2} {kk[0]} {kk[1]} {kk[2]} {kk[3]}\n")
     
     mapx = np.zeros((width, height), dtype=np.float32)
     mapy = np.zeros((width, height), dtype=np.float32)
@@ -74,10 +87,22 @@ def colmap_main(args):
             mapx.T,
             mapy.T,
             interpolation=cv2.INTER_LINEAR,
-            borderMode=cv2.BORDER_REFLECT_101,
+            # borderMode=cv2.BORDER_REFLECT_101,
+            borderMode=cv2.BORDER_CONSTANT,
+            borderValue=(0, 0, 0)
         )
-        out_image_path = Path(out_image_dir) / frame
+        out_image_path = Path(out_image_dir) / frame.replace(".JPG", ".png") # rgba can not use .jpg
         out_image_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # also generate valid region mask
+        mask = np.ones_like(undistorted_image[:, :, 0], dtype=np.uint8)*255
+        mask[mapx.T < 0] = 0
+        mask[mapx.T >= width_org] = 0
+        mask[mapy.T < 0] = 0
+        mask[mapy.T >= height_org] = 0
+        
+        # assign the alpha channel
+        undistorted_image = np.concatenate([undistorted_image, mask[:, :, None]], axis=2)
         cv2.imwrite(str(out_image_path), undistorted_image)
 
 

@@ -1,6 +1,6 @@
 python train.py \
     -m output/0a5c013435 \
-    -s /nas/shared/pjlab_lingjun_landmarks/liaozimu/data/scannet/0a5c013435/dslr \
+    -s /mnt/data_ssd_4tb/Datasets/scannetpp_tiny/data/0a5c013435/dslr \
     --iterations 30000 \
     --save_iterations 10000 20000 30000\
     --test_iterations 10000 20000 30000 \
