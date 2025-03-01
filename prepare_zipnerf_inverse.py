@@ -1,4 +1,3 @@
-
 import os
 import numpy as np
 import cv2
@@ -30,10 +29,9 @@ def read_intrinsics_text(path):
 
 
 def colmap_main(args):
-    root_dir = args.path
-    camera_dir = Path(root_dir) / "sparse" / "0" / "cameras.bin"
-    input_image_dir = Path(root_dir) / args.src
-    out_image_dir = Path(root_dir) / args.dst
+    camera_dir = Path(args.camera_path)
+    input_image_dir = Path(args.src)
+    out_image_dir = Path(args.dst)
     
     cam_intrinsics = read_intrinsics_binary(camera_dir)
     width = cam_intrinsics[1].width
@@ -42,7 +40,10 @@ def colmap_main(args):
     print(params)
     
     # adjust fx, fy, cx, cy by the actual image size
-    ratio = 1 / float(input_image_dir.name[7])
+    if args.r == -1:
+        ratio = 1 / float(input_image_dir.name[7])
+    else:
+        ratio = 1 / args.r
     
     fx = params[0] * ratio
     fy = params[1] * ratio
@@ -54,59 +55,47 @@ def colmap_main(args):
     distortion_params = params[4:]
     kk = distortion_params
     
-    mapx = np.zeros((width, height), dtype=np.float32)
-    mapy = np.zeros((width, height), dtype=np.float32)
-    
-    for i in tqdm(range(0, width), desc="calculate_maps"):
+    # TODO: this remapping not exact, because in undistortion, r was calculated from different domain's theta
+    # Reverse warping
+    reverse_mapx = np.zeros((width, height), dtype=np.float32)
+    reverse_mapy = np.zeros((width, height), dtype=np.float32)
+    for i in tqdm(range(0, width), desc="calculate_reverse_maps"):
         for j in range(0, height):
             x = float(i)
             y = float(j)
-            # x1 = (x - cx) / fx
-            # y1 = (y - cy) / fy
-            x1 = (x - width // 2) / fx
-            y1 = (y - height // 2) / fy
+            x1 = (x - cx) / fx
+            y1 = (y - cy) / fy
             theta = np.sqrt(x1**2 + y1**2)
             r = (1.0 + kk[0] * theta**2 + kk[1] * theta**4 + kk[2] * theta**6 + kk[3] * theta**8)
-            # x2 = fx * x1 * r + width // 2
-            # y2 = fy * y1 * r + height // 2
-            x2 = fx * x1 * r + cx
-            y2 = fy * y1 * r + cy
-            mapx[i, j] = x2
-            mapy[i, j] = y2
+            x2 = fx * x1 / r + width // 2
+            y2 = fy * y1 / r + height // 2
+            reverse_mapx[i, j] = x2
+            reverse_mapy[i, j] = y2
     
     frames = os.listdir(input_image_dir)
 
     for frame in tqdm(frames, desc="frame"):
         image_path = Path(input_image_dir) / frame
-        image = cv2.imread(str(image_path))
-        undistorted_image = cv2.remap(
-            image,
-            mapx.T,
-            mapy.T,
+        undistorted_image = cv2.imread(str(image_path))
+        
+        reversed_image = cv2.remap(
+            undistorted_image,
+            reverse_mapx.T,
+            reverse_mapy.T,
             interpolation=cv2.INTER_LINEAR,
             borderMode=cv2.BORDER_CONSTANT,
             borderValue=(0, 0, 0)
         )
-        out_image_path = Path(out_image_dir) / frame.replace(".JPG", ".png") # rgba can not use .jpg
-        out_image_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # generate valid region mask
-        mask = np.ones_like(undistorted_image[:, :, 0], dtype=np.uint8)*255
-        mask[mapx.T < 0] = 0
-        mask[mapx.T >= width] = 0
-        mask[mapy.T < 0] = 0
-        mask[mapy.T >= height] = 0
-        
-        # assign the alpha channel
-        undistorted_image = np.concatenate([undistorted_image, mask[:, :, None]], axis=2)
-        cv2.imwrite(str(out_image_path), undistorted_image)
+        reversed_image_path = Path(out_image_dir) / frame
+        reversed_image_path.parent.mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(str(reversed_image_path), reversed_image)
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument('--path', type=str, default="/mnt/data_ssd_4tb/Datasets/zipnerf/fisheye/berlin/")
-    parser.add_argument('--src', type=str, default="images_4")
-    parser.add_argument('--dst', type=str, default="images_4_undistorted_fisheye")
+    parser.add_argument('--camera-path', type=str, default="/mnt/data_ssd_4tb/Datasets/zipnerf/fisheye/berlin/sparse/0/cameras.bin")
+    parser.add_argument('--src', type=str, default="/mnt/data_ssd_4tb/Datasets/zipnerf/fisheye/berlin/images_8_undistorted_fisheye")
+    parser.add_argument('--dst', type=str, default="/mnt/data_ssd_4tb/Datasets/zipnerf/fisheye/berlin/images_8_reproduced_fisheye")
+    parser.add_argument('-r', type=int, default=-1)
     args = parser.parse_args()
     colmap_main(args)
-
