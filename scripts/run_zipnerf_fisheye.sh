@@ -1,5 +1,5 @@
-DATASET_PATH="/mnt/data_ssd_4tb/Datasets/zipnerf/fisheye/berlin"
-OUTPUT_PATH="output/zipnerf/fisheye/berlin"
+DATASET_PATH="/mnt/data_ssd_4tb/Datasets/zipnerf/fisheye/nyc"
+OUTPUT_PATH="output/zipnerf/fisheye/nyc"
 
 python prepare_zipnerf_fish2equi.py \
     --path $DATASET_PATH \

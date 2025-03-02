@@ -55,23 +55,47 @@ def colmap_main(args):
     distortion_params = params[4:]
     kk = distortion_params
     
-    # TODO: this remapping not exact, because in undistortion, r was calculated from different domain's theta
+    # Use prepared fisheye grid map by DAC https://github.com/yuliangguo/depth_any_camera
+    grid_map_file = Path(args.camera_path).parent / "grid_fisheye.npy"
+    grid_fisheye = np.load(grid_map_file)
+    grid_isnan = cv2.resize(grid_fisheye[:, :, 3], (width, height), interpolation=cv2.INTER_NEAREST)
+    grid_fisheye = cv2.resize(grid_fisheye[:, :, :3], (width, height))
+    grid_fisheye = np.concatenate([grid_fisheye, grid_isnan[:, :, None]], axis=2)
+    
     # Reverse warping
     reverse_mapx = np.zeros((width, height), dtype=np.float32)
     reverse_mapy = np.zeros((width, height), dtype=np.float32)
+    # More exact reverse warping using grid_fisheye
     for i in tqdm(range(0, width), desc="calculate_reverse_maps"):
         for j in range(0, height):
-            x = float(i)
-            y = float(j)
-            x1 = (x - cx) / fx
-            y1 = (y - cy) / fy
-            # Inaccurcy from not easy to theta from theta_d computed from source KB space
-            theta_d = np.sqrt(x1**2 + y1**2)
-            r = (1.0 + kk[0] * theta_d**2 + kk[1] * theta_d**4 + kk[2] * theta_d**6 + kk[3] * theta_d**8)
-            x2 = fx * x1 / r + width // 2
-            y2 = fy * y1 / r + height // 2
+            X_c = grid_fisheye[j, i, 0]
+            Y_c = grid_fisheye[j, i, 1]
+            Z_c = grid_fisheye[j, i, 2]
+            X_c = X_c / (Z_c + 1e-9)
+            Y_c = Y_c / (Z_c + 1e-9)
+            
+            r = np.sqrt(X_c**2 + Y_c**2)
+            theta = np.arctan(r)
+            
+            x2 = fx * X_c * theta / r + width // 2
+            y2 = fy * Y_c * theta/ r + height // 2
             reverse_mapx[i, j] = x2
             reverse_mapy[i, j] = y2
+    
+    # # TODO: this remapping not exact, because in undistortion, r was calculated from different domain's theta
+    # for i in tqdm(range(0, width), desc="calculate_reverse_maps"):
+    #     for j in range(0, height):
+    #         x = float(i)
+    #         y = float(j)
+    #         x1 = (x - cx) / fx
+    #         y1 = (y - cy) / fy
+    #         # Inaccurcy from not easy to theta from theta_d computed from source KB space
+    #         theta_d = np.sqrt(x1**2 + y1**2)
+    #         r = (1.0 + kk[0] * theta_d**2 + kk[1] * theta_d**4 + kk[2] * theta_d**6 + kk[3] * theta_d**8)
+    #         x2 = fx * x1 / r + width // 2
+    #         y2 = fy * y1 / r + height // 2
+    #         reverse_mapx[i, j] = x2
+    #         reverse_mapy[i, j] = y2
     
     frames = os.listdir(input_image_dir)
 
