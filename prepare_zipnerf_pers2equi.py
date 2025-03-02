@@ -61,17 +61,13 @@ def colmap_main(args):
         for j in range(0, height):
             x = float(i)
             y = float(j)
-            # x1 = (x - cx) / fx
-            # y1 = (y - cy) / fy
             x1 = (x - width // 2) / fx
             y1 = (y - height // 2) / fy
+            # From source space equidistant, original theta already in pixel space. Refer to paper eq. (6) to derive theta
             theta = np.sqrt(x1**2 + y1**2)
-            r = (1.0 + kk[0] * theta**2 + kk[1] * theta**4 + kk[2] * theta**6 + kk[3] * theta**8)
-            # x2 = fx * x1 * r + width // 2
-            # y2 = fy * y1 * r + height // 2
-            x2 = fx * x1 * r + cx
-            y2 = fy * y1 * r + cy
-            mapx[i, j] = x2
+            x2 = fx * x1 / (theta+1e-9) * np.tan(theta) + cx
+            y2 = fy * y1 / (theta+1e-9) * np.tan(theta) + cy
+            mapx[i, j] = x2 
             mapy[i, j] = y2
     
     frames = os.listdir(input_image_dir)
@@ -104,9 +100,9 @@ def colmap_main(args):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument('--path', type=str, default="/mnt/data_ssd_4tb/Datasets/zipnerf/fisheye/berlin/")
+    parser.add_argument('--path', type=str, default="/mnt/data_ssd_4tb/Datasets/zipnerf/undistorted/berlin/")
     parser.add_argument('--src', type=str, default="images_4")
-    parser.add_argument('--dst', type=str, default="images_4_undistorted_fisheye")
+    parser.add_argument('--dst', type=str, default="images_4_equidist")
     args = parser.parse_args()
     colmap_main(args)
 

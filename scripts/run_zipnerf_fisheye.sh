@@ -1,15 +1,15 @@
-DATASET_PATH="/mnt/data_ssd_4tb/Datasets/zipnerf/fisheye/nyc"
-OUTPUT_PATH="output/zipnerf/fisheye/nyc"
+DATASET_PATH="/mnt/data_ssd_4tb/Datasets/zipnerf/fisheye/berlin"
+OUTPUT_PATH="output/zipnerf/fisheye/berlin"
 
-python prepare_zipnerf.py \
+python prepare_zipnerf_fish2equi.py \
     --path $DATASET_PATH \
     --src images_8 \
-    --dst images_8_undistorted_fisheye
+    --dst images_8_equidist
 
 python train.py \
     -m $OUTPUT_PATH \
     -s $DATASET_PATH \
-    --images images_8_undistorted_fisheye \
+    --images images_8_equidist \
     --iterations 30000 \
     --save_iterations 10000 20000 30000 \
     --test_iterations 10000 20000 30000 \
@@ -27,13 +27,13 @@ python render.py \
     -r 1 \
     --skip_train
 
-python prepare_zipnerf_inverse.py \
+python prepare_zipnerf_equi2fish.py \
     --camera-path $DATASET_PATH/sparse/0/cameras.bin \
     --src $OUTPUT_PATH/test/ours_30000/gt \
     --dst $OUTPUT_PATH/test/ours_30000/gt_remap \
     -r 8
 
-python prepare_zipnerf_inverse.py \
+python prepare_zipnerf_equi2fish.py \
     --camera-path $DATASET_PATH/sparse/0/cameras.bin \
     --src $OUTPUT_PATH/test/ours_30000/renders \
     --dst $OUTPUT_PATH/test/ours_30000/renders_remap \
