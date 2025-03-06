@@ -78,7 +78,7 @@ def getNerfppNorm(cam_info):
 
     return {"translate": translate, "radius": radius}
 
-def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, override_intr=None):
+def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, override_intr=None, cross_camera=False):
     cam_infos = []
     for idx, key in enumerate(cam_extrinsics):
         sys.stdout.write('\r')
@@ -117,6 +117,15 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, override_in
             assert False, "Colmap camera model not handled: only undistorted datasets (PINHOLE, SIMPLE_PINHOLE, OPENCV_FISHEYE cameras) supported!"
 
         image_path = os.path.join(images_folder, os.path.basename(extr.name))
+        if cross_camera:
+            if 'indoor_' not in os.path.basename(extr.name):
+                image_path = image_path.replace(os.path.basename(extr.name), 'indoor_' + os.path.basename(extr.name))
+            else:
+                image_path = image_path.replace('indoor_', '')
+            
+            image_path = image_path.replace(".JPG", ".png")
+            if not os.path.exists(image_path):
+                continue
         image_name = os.path.basename(image_path).split(".")[0]
         if not os.path.exists(image_path):
             if '.png' in image_path:
@@ -168,7 +177,7 @@ def storePly(path, xyz, rgb):
     ply_data.write(path)
 
 # def readColmapSceneInfo(path, images, eval, llffhold=8):
-def readColmapSceneInfo(args, override_intr=None):
+def readColmapSceneInfo(args, override_intr=None, cross_camera=False):
     
     ################
     path = args.source_path
@@ -181,6 +190,11 @@ def readColmapSceneInfo(args, override_intr=None):
     try:
         cameras_extrinsic_file = os.path.join(path, colmap_dir, "images.bin")
         cameras_intrinsic_file = os.path.join(path, colmap_dir, "cameras.bin")
+        if cross_camera: # only for zipnerf case
+            if 'undistorted' in cameras_extrinsic_file:
+                cameras_extrinsic_file = cameras_extrinsic_file.replace('undistorted', 'fisheye')
+            elif 'fisheye' in cameras_extrinsic_file:
+                cameras_extrinsic_file = cameras_extrinsic_file.replace('fisheye', 'undistorted')
         cam_extrinsics = read_extrinsics_binary(cameras_extrinsic_file)
         cam_intrinsics = read_intrinsics_binary(cameras_intrinsic_file)
     except:
@@ -192,7 +206,7 @@ def readColmapSceneInfo(args, override_intr=None):
         cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
 
     reading_dir = "images" if images == None else images
-    cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir), override_intr=override_intr)
+    cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir), override_intr=override_intr, cross_camera=cross_camera)
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
 
     eval = True

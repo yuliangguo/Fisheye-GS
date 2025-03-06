@@ -29,6 +29,11 @@ def read_intrinsics_text(path):
 
 
 def colmap_main(args):
+    if args.cross_camera:
+        if 'fisheye' in args.camera_path:
+            args.camera_path = args.camera_path.replace('fisheye', 'undistorted')
+        else:
+            args.camera_path = args.camera_path.replace('undistorted', 'fisheye')
     camera_dir = Path(args.camera_path)
     input_image_dir = Path(args.src)
     out_image_dir = Path(args.dst)
@@ -98,5 +103,6 @@ if __name__ == "__main__":
     parser.add_argument('--src', type=str, default="/mnt/data_ssd_4tb/Datasets/zipnerf/undistorted/berlin/images_4_equidist")
     parser.add_argument('--dst', type=str, default="/mnt/data_ssd_4tb/Datasets/zipnerf/undistorted/berlin/images_4_equidist")
     parser.add_argument('-r', type=int, default=-1)
+    parser.add_argument('--cross_camera', action='store_true')
     args = parser.parse_args()
     colmap_main(args)

@@ -27,7 +27,7 @@ from utils.image_utils import psnr
 from scene.gaussian_model import GaussianModel
 
 
-def render_set(model_path, name, iteration, views, gaussians, pipeline, background, camera_model):
+def render_set(model_path, name, iteration, views, gaussians, pipeline, background, camera_model, cross_camera=False):
     max_allocated_memory_before = torch.cuda.max_memory_allocated()
     print(f"Max Allocated Memory Before Rendering: {max_allocated_memory_before} bytes")
     torch.cuda.empty_cache()
@@ -40,6 +40,10 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
         raise NotImplementedError
     render_path = os.path.join(model_path, name, "ours_{}".format(iteration), "renders")
     gts_path = os.path.join(model_path, name, "ours_{}".format(iteration), "gt")
+
+    if cross_camera:
+        render_path += "_cross_camera"
+        gts_path += "_cross_camera"
 
     makedirs(render_path, exist_ok=True)
     makedirs(gts_path, exist_ok=True)
@@ -82,18 +86,18 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
     print(f"Max Allocated Memory After Rendering: {max_allocated_memory_after} bytes")
     # progress_bar.close()
 
-def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, camera_model):
+def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, camera_model, cross_camera=False):
     with torch.no_grad():
         gaussians = GaussianModel(dataset.sh_degree)
-        scene = Scene(dataset, gaussians, load_iteration=iteration, shuffle=False)
+        scene = Scene(dataset, gaussians, load_iteration=iteration, shuffle=False, cross_camera=cross_camera)
         bg_color = [1,1,1] if dataset.white_background else [0, 0, 0]
         background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
         if not skip_train:
-             render_set(dataset.model_path, "train", scene.loaded_iter, scene.getTrainCameras(), gaussians, pipeline, background, camera_model)
+             render_set(dataset.model_path, "train", scene.loaded_iter, scene.getTrainCameras(), gaussians, pipeline, background, camera_model, cross_camera=cross_camera)
 
         if not skip_test:
-             render_set(dataset.model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background, camera_model)
+             render_set(dataset.model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background, camera_model, cross_camera=cross_camera)
 
 
 if __name__ == "__main__":
@@ -105,9 +109,16 @@ if __name__ == "__main__":
     parser.add_argument("--skip_train", action="store_true")
     parser.add_argument("--skip_test", action="store_true")
     parser.add_argument("--quiet", action="store_true")
+    # cross camera rendering on zipnerf dataset (By Yuliang Guo), require zipnerf structure following PATH/zipnerf/fisheye/* and PATH/zipnerf/undistorted/*
+    parser.add_argument("--cross_camera", action="store_true")
     args = get_combined_args(parser)
     print("Rendering " + args.model_path)
     # Initialize system state (RNG)
     safe_state(args.quiet)
     print(args.camera_model)
-    render_sets(model.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test, args.camera_model)
+    if args.cross_camera:
+        if 'fisheye' in args.source_path:
+            args.source_path =args.source_path.replace("fisheye", "undistorted")
+        elif 'undistorted' in args.source_path:
+            args.source_path = args.source_path.replace("undistorted", "fisheye")
+    render_sets(model.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test, args.camera_model, cross_camera=args.cross_camera)

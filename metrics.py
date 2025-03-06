@@ -33,7 +33,7 @@ def readImages(renders_dir, gt_dir):
         image_names.append(fname)
     return renders, gts, image_names
 
-def evaluate(model_paths, use_remap=False, apply_mask=False):
+def evaluate(model_paths, use_remap=False, apply_mask=False, cross_camera=False):
 
     full_dict = {}
     per_view_dict = {}
@@ -62,12 +62,15 @@ def evaluate(model_paths, use_remap=False, apply_mask=False):
             per_view_dict_polytopeonly[scene_dir][method] = {}
 
             method_dir = test_dir / method
+            gt_dir = method_dir/ "gt"
+            renders_dir = method_dir / "renders"
+            if cross_camera:
+                gt_dir = gt_dir.with_name(gt_dir.name + "_cross_camera")
+                renders_dir = renders_dir.with_name(renders_dir.name + "_cross_camera")        
             if use_remap:
-                gt_dir = method_dir / "gt_remap"
-                renders_dir = method_dir / "renders_remap"
-            else:
-                gt_dir = method_dir/ "gt"
-                renders_dir = method_dir / "renders"
+                gt_dir = gt_dir.with_name(gt_dir.name + "_remap")
+                renders_dir = renders_dir.with_name(renders_dir.name + "_remap")
+                
             
             renders, gts, image_names = readImages(renders_dir, gt_dir)
 
@@ -97,10 +100,16 @@ def evaluate(model_paths, use_remap=False, apply_mask=False):
                                                         "PSNR": {name: psnr for psnr, name in zip(torch.tensor(psnrs).tolist(), image_names)},
                                                         "LPIPS": {name: lp for lp, name in zip(torch.tensor(lpipss).tolist(), image_names)}})
 
-        with open(scene_dir + "/results.json", 'w') as fp:
-            json.dump(full_dict[scene_dir], fp, indent=True)
-        with open(scene_dir + "/per_view.json", 'w') as fp:
-            json.dump(per_view_dict[scene_dir], fp, indent=True)
+        if cross_camera:
+            with open(scene_dir + "/results_cross_camera.json", 'w') as fp:
+                json.dump(full_dict[scene_dir], fp, indent=True)
+            with open(scene_dir + "/per_view_cross_camera.json", 'w') as fp:
+                json.dump(per_view_dict[scene_dir], fp, indent=True)
+        else:
+            with open(scene_dir + "/results.json", 'w') as fp:
+                json.dump(full_dict[scene_dir], fp, indent=True)
+            with open(scene_dir + "/per_view.json", 'w') as fp:
+                json.dump(per_view_dict[scene_dir], fp, indent=True)
         # except:
         #     print("Unable to compute metrics for model", scene_dir)
 
@@ -113,5 +122,6 @@ if __name__ == "__main__":
     parser.add_argument('--model_paths', '-m', required=True, nargs="+", type=str, default=[])
     parser.add_argument('--use_remap', action='store_true')
     parser.add_argument('--apply_mask', action='store_true')
+    parser.add_argument('--cross_camera', '-c', action='store_true')
     args = parser.parse_args()
-    evaluate(args.model_paths, args.use_remap, args.apply_mask)
+    evaluate(args.model_paths, args.use_remap, args.apply_mask, args.cross_camera)

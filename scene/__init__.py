@@ -48,7 +48,7 @@ class Scene:
 
     gaussians : GaussianModel
 
-    def __init__(self, args : ModelParams, gaussians : GaussianModel, load_iteration=None, shuffle=True, resolution_scales=[1.0]):
+    def __init__(self, args : ModelParams, gaussians : GaussianModel, load_iteration=None, shuffle=True, resolution_scales=[1.0], cross_camera=False):
         """b
         :param path: Path to colmap scene main folder.
         """
@@ -67,7 +67,7 @@ class Scene:
         self.test_cameras = {}
         dataset = dataset_selector(args)
         print(Fore.YELLOW + f"Assuming {dataset} data set!" + Style.RESET_ALL)
-        scene_info = sceneLoadTypeCallbacks[dataset](args)
+        scene_info = sceneLoadTypeCallbacks[dataset](args, cross_camera=cross_camera)
         # print(args.source_path)
         # if os.path.exists(os.path.join(args.source_path, "sparse")):
         # if os.path.exists(os.path.join(args.source_path, args.colmaps)) and (args.dataset == "AUTO" or args.dataset == "COLMAP"):
