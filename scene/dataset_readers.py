@@ -122,10 +122,9 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, override_in
                 image_path = image_path.replace(os.path.basename(extr.name), 'indoor_' + os.path.basename(extr.name))
             else:
                 image_path = image_path.replace('indoor_', '')
-            
             image_path = image_path.replace(".JPG", ".png")
-            if not os.path.exists(image_path):
-                continue
+        if not os.path.exists(image_path):
+            continue
         image_name = os.path.basename(image_path).split(".")[0]
         if not os.path.exists(image_path):
             if '.png' in image_path:
