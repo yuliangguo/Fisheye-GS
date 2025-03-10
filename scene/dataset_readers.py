@@ -466,7 +466,7 @@ def readMvlInfo(args):
     raise NotImplementedError
     #return scene_info
 
-def readScannetppInfo(args):
+def readScannetppInfo(args, cross_camera=False):
     args.colmaps = 'colmap'
     if args.camera_model == "PINHOLE":
         args.images = 'undistorted_images'
