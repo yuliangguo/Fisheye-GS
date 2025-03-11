@@ -30,7 +30,7 @@ def read_intrinsics_text(path):
 def colmap_main(args):
     root_dir = args.path
     camera_dir = Path(root_dir) / "colmap" / "cameras.txt"
-    camera_dir_new = Path(root_dir) / "colmap" / "cameras_undistorted.txt"
+    camera_dir_new = Path(root_dir) / "colmap" / "cameras_equidist.txt"
     input_image_dir = Path(root_dir) / args.src
     out_image_dir = Path(root_dir) / args.dst
     
@@ -47,15 +47,15 @@ def colmap_main(args):
     
     width_org = np.copy(width)
     height_org =  np.copy(height)
-    width = 2010
-    height = 1340
+    fx_tgt = fx * 0.85
+    fy_tgt = fy * 0.85
     
     # write modified camera intrinsics in file
     with open(camera_dir_new, 'w') as f:
         f.write(f"# Camera list with one line of data per camera:\n")
         f.write(f"#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n")
         f.write(f"# Number of cameras: 1\n")
-        f.write(f"{1} OPENCV_FISHEYE {width} {height} {fx} {fy} {width//2} {height//2} {kk[0]} {kk[1]} {kk[2]} {kk[3]}\n")
+        f.write(f"{1} OPENCV_FISHEYE {width} {height} {fx_tgt} {fy_tgt} {width//2} {height//2} {kk[0]} {kk[1]} {kk[2]} {kk[3]}\n")
     
     mapx = np.zeros((width, height), dtype=np.float32)
     mapy = np.zeros((width, height), dtype=np.float32)
@@ -64,14 +64,10 @@ def colmap_main(args):
         for j in range(0, height):
             x = float(i)
             y = float(j)
-            # x1 = (x - cx) / fx
-            # y1 = (y - cy) / fy
-            x1 = (x - width // 2) / fx
-            y1 = (y - height // 2) / fy
+            x1 = (x - width // 2) / fx_tgt
+            y1 = (y - height // 2) / fy_tgt
             theta = np.sqrt(x1**2 + y1**2)
             r = (1.0 + kk[0] * theta**2 + kk[1] * theta**4 + kk[2] * theta**6 + kk[3] * theta**8)
-            # x2 = fx * x1 * r + width // 2
-            # y2 = fy * y1 * r + height // 2
             x2 = fx * x1 * r + cx
             y2 = fy * y1 * r + cy
             mapx[i, j] = x2
@@ -110,7 +106,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('--path', type=str, default="/mnt/data_ssd_4tb/Datasets/scannetpp_tiny/data/0a5c013435/dslr")
     parser.add_argument('--src', type=str, default="resized_images")
-    parser.add_argument('--dst', type=str, default="image_undistorted_fisheye")
+    parser.add_argument('--dst', type=str, default="images_equidist")
     args = parser.parse_args()
     colmap_main(args)
 

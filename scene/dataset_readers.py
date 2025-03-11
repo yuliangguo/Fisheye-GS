@@ -122,7 +122,7 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, override_in
                 image_path = image_path.replace(os.path.basename(extr.name), 'indoor_' + os.path.basename(extr.name))
             else:
                 image_path = image_path.replace('indoor_', '')
-            image_path = image_path.replace(".JPG", ".png")
+        image_path = image_path.replace(".JPG", ".png")
         if not os.path.exists(image_path):
             continue
         image_name = os.path.basename(image_path).split(".")[0]
@@ -199,8 +199,8 @@ def readColmapSceneInfo(args, override_intr=None, cross_camera=False):
     except:
         cameras_extrinsic_file = os.path.join(path, colmap_dir, "images.txt")
         cameras_intrinsic_file = os.path.join(path, colmap_dir, "cameras.txt")
-        if os.path.exists(cameras_intrinsic_file[:-4] + "_undistorted.txt"):
-            cameras_intrinsic_file = cameras_intrinsic_file[:-4] + "_undistorted.txt"
+        if os.path.exists(cameras_intrinsic_file[:-4] + "_equidist.txt"):
+            cameras_intrinsic_file = cameras_intrinsic_file[:-4] + "_equidist.txt"
         cam_extrinsics = read_extrinsics_text(cameras_extrinsic_file)
         cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
 
@@ -467,10 +467,10 @@ def readMvlInfo(args):
 
 def readScannetppInfo(args, cross_camera=False):
     args.colmaps = 'colmap'
-    if args.camera_model == "PINHOLE":
-        args.images = 'undistorted_images'
-    if args.camera_model == "FISHEYE":
-        args.images = 'image_undistorted_fisheye'
+    # if args.camera_model == "PINHOLE":
+    #     args.images = 'undistorted_images'
+    # if args.camera_model == "FISHEYE":
+    #     args.images = 'image_undistorted_fisheye'
 
     override_intr = None
     path = args.source_path
