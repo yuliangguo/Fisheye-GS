@@ -1,17 +1,17 @@
-DATASET_PATH="/mnt/data_ssd_4tb/Datasets/scannetpp_tiny/data/0a5c013435/dslr/"
-OUTPUT_PATH="output/scannetpp/dslr/0a5c013435"
+DATASET_PATH="/mnt/data_ssd_4tb/Datasets/mipnerf360/bicycle"
+OUTPUT_PATH="output/mipnerf/bicycle_r4"
 
-python prepare_scannetpp_fish2equi.py \
+python prepare_zipnerf_pers2equi.py \
     --path $DATASET_PATH \
-    --src resized_images \
-    --dst images_equidist
+    --src images_4 \
+    --dst images_4_equidist
 
 python train.py \
     -m $OUTPUT_PATH \
     -s $DATASET_PATH \
-    --images images_equidist \
+    --images images_4_equidist \
     --iterations 30000 \
-    --save_iterations 10000 20000 30000 \
+    --save_iterations 10000 20000 30000\
     --test_iterations 10000 20000 30000 \
     --bs 3 \
     -r 1 \
@@ -25,21 +25,24 @@ python render.py \
     -s $DATASET_PATH \
     --iteration 30000 \
     --camera_model FISHEYE \
-    -r 1 \
-    --skip_train
+    -r 1  \
+    --skip_train \
 
 # wrap back to origianal space
-python prepare_scannetpp_equi2fish.py \
-    --camera-path $DATASET_PATH/colmap/cameras_equidist.txt \
+python prepare_zipnerf_equi2pers.py \
+    --camera-path $DATASET_PATH/sparse/0/cameras.bin \
     --src $OUTPUT_PATH/test/ours_30000/gt \
     --dst $OUTPUT_PATH/test/ours_30000/gt_remap \
+    -r 4
 
-python prepare_scannetpp_equi2fish.py \
-    --camera-path $DATASET_PATH/colmap/cameras_equidist.txt \
+python prepare_zipnerf_equi2pers.py \
+    --camera-path $DATASET_PATH/sparse/0/cameras.bin \
     --src $OUTPUT_PATH/test/ours_30000/renders \
     --dst $OUTPUT_PATH/test/ours_30000/renders_remap \
+    -r 4
 
 # evaluation
 python metrics.py \
     -m $OUTPUT_PATH \
     --use_remap
+
