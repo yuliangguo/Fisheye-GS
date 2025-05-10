@@ -215,11 +215,30 @@ int CudaRasterizer::Rasterizer::forward(
 	const float* cam_pos,
 	const float tan_fovx, float tan_fovy,
 	const bool prefiltered,
+	float* kernel_times,
 	float* out_color,
 	int* radii,
 	bool is_fisheye,
 	bool debug)
 {
+	cudaEvent_t overallStart, overallStop;
+	cudaEvent_t preprocessStart, preprocessStop;
+	cudaEvent_t duplicateStart, duplicateStop;
+	cudaEvent_t sortStart, sortStop;
+	cudaEvent_t renderStart, renderStop;
+	cudaEventCreate(&overallStart);
+	cudaEventCreate(&overallStop);
+	cudaEventCreate(&preprocessStart);
+	cudaEventCreate(&preprocessStop);
+	cudaEventCreate(&duplicateStart);
+	cudaEventCreate(&duplicateStop);
+	cudaEventCreate(&sortStart);
+	cudaEventCreate(&sortStop);
+	cudaEventCreate(&renderStart);
+	cudaEventCreate(&renderStop);
+	float milliseconds_overall, milliseconds_preprocess, milliseconds_duplicate, milliseconds_sort, milliseconds_render;
+
+	cudaEventRecord(overallStart, 0);
 	
 	const float focal_y = height / (2.0f * tan_fovy);
 	const float focal_x = width / (2.0f * tan_fovx);
@@ -247,6 +266,7 @@ int CudaRasterizer::Rasterizer::forward(
 	}
 
 	// Run preprocessing per-Gaussian (transformation, bounding, conversion of SHs to RGB)
+	cudaEventRecord(preprocessStart, 0);
 	CHECK_CUDA(FORWARD::preprocess(
 		P, D, M,
 		means3D,
@@ -274,6 +294,9 @@ int CudaRasterizer::Rasterizer::forward(
 		is_fisheye,
 		prefiltered
 	), debug)
+	cudaEventRecord(preprocessStop, 0);
+	cudaEventSynchronize(preprocessStop);
+	cudaEventElapsedTime(&milliseconds_preprocess, preprocessStart, preprocessStop);
 
 	// Compute prefix sum over full list of touched tile counts by Gaussians
 	// E.g., [2, 3, 0, 2, 1] -> [2, 5, 5, 7, 8]
@@ -289,6 +312,7 @@ int CudaRasterizer::Rasterizer::forward(
 
 	// For each instance to be rendered, produce adequate [ tile | depth ] key 
 	// and corresponding dublicated Gaussian indices to be sorted
+	cudaEventRecord(duplicateStart, 0);
 	duplicateWithKeys << <(P + 255) / 256, 256 >> > (
 		P,
 		geomState.means2D,
@@ -299,16 +323,24 @@ int CudaRasterizer::Rasterizer::forward(
 		radii,
 		tile_grid)
 	CHECK_CUDA(, debug)
+	cudaEventRecord(duplicateStop, 0);
+	cudaEventSynchronize(duplicateStop);
+	cudaEventElapsedTime(&milliseconds_duplicate, duplicateStart, duplicateStop);
+	
 
 	int bit = getHigherMsb(tile_grid.x * tile_grid.y);
 
 	// Sort complete list of (duplicated) Gaussian indices by keys
+	cudaEventRecord(sortStart, 0);
 	CHECK_CUDA(cub::DeviceRadixSort::SortPairs(
 		binningState.list_sorting_space,
 		binningState.sorting_size,
 		binningState.point_list_keys_unsorted, binningState.point_list_keys,
 		binningState.point_list_unsorted, binningState.point_list,
 		num_rendered, 0, 32 + bit), debug)
+	cudaEventRecord(sortStop, 0);
+	cudaEventSynchronize(sortStop);
+	cudaEventElapsedTime(&milliseconds_sort, sortStart, sortStop);
 
 	CHECK_CUDA(cudaMemset(imgState.ranges, 0, tile_grid.x * tile_grid.y * sizeof(uint2)), debug);
 
@@ -322,6 +354,7 @@ int CudaRasterizer::Rasterizer::forward(
 
 	// Let each tile blend its range of Gaussians independently in parallel
 	const float* feature_ptr = colors_precomp != nullptr ? colors_precomp : geomState.rgb;
+	cudaEventRecord(renderStart, 0);
 	CHECK_CUDA(FORWARD::render(
 		tile_grid, block,
 		imgState.ranges,
@@ -334,7 +367,32 @@ int CudaRasterizer::Rasterizer::forward(
 		imgState.n_contrib,
 		background,
 		out_color), debug)
+	
+	cudaEventRecord(overallStop, 0);
+	cudaEventSynchronize(overallStop);
 
+	cudaEventElapsedTime(&milliseconds_render, renderStart, overallStop);
+	cudaEventElapsedTime(&milliseconds_overall, overallStart, overallStop);
+	kernel_times[0] = milliseconds_overall;
+	kernel_times[1] = milliseconds_preprocess;
+	kernel_times[2] = milliseconds_duplicate;
+	kernel_times[3] = milliseconds_sort;
+	kernel_times[4] = milliseconds_render;
+
+	cudaEventDestroy(overallStart);
+	cudaEventDestroy(overallStop);
+
+	cudaEventDestroy(preprocessStart);
+	cudaEventDestroy(preprocessStop);
+
+	cudaEventDestroy(duplicateStart);
+	cudaEventDestroy(duplicateStop);
+
+	cudaEventDestroy(sortStart);
+	cudaEventDestroy(sortStop);
+
+	cudaEventDestroy(renderStart);
+	cudaEventDestroy(renderStop);
 	return num_rendered;
 }
 

@@ -1,32 +1,32 @@
-DATASET_PATH="/mnt/data_ssd_4tb/Datasets/scannetpp_tiny/data/0a5c013435/dslr/"
-OUTPUT_PATH="output/scannetpp/dslr/0a5c013435"
+DATASET_PATH="/media/scannetpp/demo/0a7cc12c0e/dslr/"
+OUTPUT_PATH="output/scannetpp/dslr/0a7cc12c0e"
 
-python prepare_scannetpp_fish2equi.py \
-    --path $DATASET_PATH \
-    --src resized_images \
-    --dst images_equidist
+# python prepare_scannetpp_fish2equi.py \
+#     --path $DATASET_PATH \
+#     --src resized_images \
+#     --dst images_equidist
 
-python train.py \
-    -m $OUTPUT_PATH \
-    -s $DATASET_PATH \
-    --images images_equidist \
-    --iterations 30000 \
-    --save_iterations 10000 20000 30000 \
-    --test_iterations 10000 20000 30000 \
-    --bs 3 \
-    -r 1 \
-    --sh_degree 3 \
-    --camera_model FISHEYE \
-    --train_random_background \
+# python train.py \
+#     -m $OUTPUT_PATH \
+#     -s $DATASET_PATH \
+#     --images images_equidist \
+#     --iterations 30000 \
+#     --save_iterations 10000 20000 30000 \
+#     --test_iterations 10000 20000 30000 \
+#     --bs 3 \
+#     -r 1 \
+#     --sh_degree 3 \
+#     --camera_model FISHEYE \
+#     --train_random_background \
 
-# render
-python render.py \
-    -m $OUTPUT_PATH \
-    -s $DATASET_PATH \
-    --iteration 30000 \
-    --camera_model FISHEYE \
-    -r 1 \
-    --skip_train
+# # render
+# python render.py \
+#     -m $OUTPUT_PATH \
+#     -s $DATASET_PATH \
+#     --iteration 30000 \
+#     --camera_model FISHEYE \
+#     -r 1 \
+#     --skip_train
 
 # wrap back to origianal space
 python prepare_scannetpp_equi2fish.py \

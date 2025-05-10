@@ -469,8 +469,8 @@ def readScannetppInfo(args, cross_camera=False):
     args.colmaps = 'colmap'
     # if args.camera_model == "PINHOLE":
     #     args.images = 'undistorted_images'
-    # if args.camera_model == "FISHEYE":
-    #     args.images = 'image_undistorted_fisheye'
+    if args.camera_model == "FISHEYE":
+        args.images = 'image_undistorted_fisheye'
 
     override_intr = None
     path = args.source_path
