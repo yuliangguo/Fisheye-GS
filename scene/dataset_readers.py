@@ -470,7 +470,7 @@ def readScannetppInfo(args, cross_camera=False):
     # if args.camera_model == "PINHOLE":
     #     args.images = 'undistorted_images'
     if args.camera_model == "FISHEYE":
-        args.images = 'image_undistorted_fisheye'
+        args.images = 'images_equidist'
 
     override_intr = None
     path = args.source_path

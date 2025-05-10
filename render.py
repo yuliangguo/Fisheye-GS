@@ -48,43 +48,69 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
     makedirs(render_path, exist_ok=True)
     makedirs(gts_path, exist_ok=True)
 
-    render_times = []
-    image_save_times = []
+
+    render_times_python = []
+    render_times_overall = []
+    render_times_prep = []
+    render_times_dup = []
+    render_times_sort = []
+    render_times_render = []
+
     # progress_bar = tqdm(views, desc="Rendering progress")
     for _ in range(5):
         results = render(views[0], gaussians, pipeline, background, is_fisheye=is_fisheye)
     for idx, view in tqdm(enumerate(views)):
         
         render_start = time.time()
-        results = render(view, gaussians, pipeline, background, is_fisheye=is_fisheye)
+        renderings = render(view, gaussians, pipeline, background, is_fisheye=is_fisheye)
+        torch.cuda.synchronize()
+        rendering = renderings["render"]
+        runtime = renderings["time"]
         torch.cuda.synchronize()
         render_end = time.time()
-        rendering = results["render"]
-        render_times.append((render_end - render_start)*1000)
-        image_save_start = time.time()
+        render_times_python.append((render_end - render_start)*1000)
+
+        render_times_overall.append(runtime[0])
+        render_times_prep.append(runtime[1])
+        render_times_dup.append(runtime[2])
+        render_times_sort.append(runtime[3])
+        render_times_render.append(runtime[4])
         gt = view.original_image[0:3, :, :]
         torchvision.utils.save_image(rendering, os.path.join(render_path, '{0:05d}'.format(idx) + ".png"))
         torchvision.utils.save_image(gt, os.path.join(gts_path, '{0:05d}'.format(idx) + ".png"))
-        image_save_end = time.time()
-        image_save_times.append((image_save_end - image_save_start)*1000)
 
-        try:
-            # in case on two devices
-            ps = psnr(rendering, gt).mean()
-            # progress_bar.set_postfix({"psnr": Fore.YELLOW+f"{ps:.4f}"+Style.RESET_ALL})
-            # progress_bar.update(1)
-        except:
-            pass
     
-    means = torch.tensor(render_times).mean()
-    maxs = torch.tensor(render_times).max()
+    means = torch.tensor(render_times_python).mean()
+    maxs = torch.tensor(render_times_python).max()
     FPS = 1.0 / (means / 1000.0)
     print(f"  AVG_Render_Time : {means} ms")
     print(f"  MAX_Render_Time : {maxs} ms")
     print(f"  FPS: {FPS}")   
+
+    means = torch.tensor(render_times_overall).mean()
+    maxs = torch.tensor(render_times_overall).max()
+    FPS = 1.0 / (means / 1000.0)
+    print(f"  AVG_OVERALL_Time : {means} ms")
+    print(f" AVG_OVERALL_Time FPS: {FPS}")   
+
+    means = torch.tensor(render_times_prep).mean()
+    maxs = torch.tensor(render_times_prep).max()
+    print(f"  AVG_PREP_Time : {means} ms")
+
+    means = torch.tensor(render_times_dup).mean()
+    maxs = torch.tensor(render_times_dup).max()
+    print(f"  AVG_DUP_Time : {means} ms")
+
+    means = torch.tensor(render_times_sort).mean()
+    maxs = torch.tensor(render_times_sort).max()
+    print(f"  AVG_SORT_Time : {means} ms")
+
+    means = torch.tensor(render_times_render).mean()
+    maxs = torch.tensor(render_times_render).max()
+    print(f"  AVG_RenFunc_Time : {means} ms")
+
     max_allocated_memory_after = torch.cuda.max_memory_allocated()
     print(f"Max Allocated Memory After Rendering: {max_allocated_memory_after} bytes")
-    # progress_bar.close()
 
 def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool, camera_model, cross_camera=False):
     with torch.no_grad():
