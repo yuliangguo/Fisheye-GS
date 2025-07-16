@@ -1,5 +1,5 @@
 export CUDA_VISIBLE_DEVICES=0
-SCENE_ID=1d003b07bd #2a1a3afad9 #2a1a3afad9 #1f7cbbdde1 4ef75031e3 1d003b07bd
+SCENE_ID=0a5c013435 #2a1a3afad9 #2a1a3afad9 #1f7cbbdde1 4ef75031e3 1d003b07bd
 DATA_ROOT=/media/scannetpp/demo/
 DATASET_DIR=$DATA_ROOT$SCENE_ID/dslr/
 # OUTPUT_DIR=./output_scannetpp_fs_gt/dslr/$SCENE_ID
