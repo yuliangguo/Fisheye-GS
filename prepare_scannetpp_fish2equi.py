@@ -7,6 +7,18 @@ from pathlib import Path
 from argparse import ArgumentParser
 
 
+
+def generate_elliptical_mask_bool(height, width, scale=1.0):
+    Y, X = np.ogrid[:height, :width]
+    center_x, center_y = width / 2, height / 2
+    a, b = width / 2, height / 2  # semi-major and semi-minor axes
+
+    a*= scale  # scale the axes to create an elliptical mask
+    b*= scale  # scale the axes to create an elliptical mask
+
+    mask = ((X - center_x)**2) / (a**2) + ((Y - center_y)**2) / (b**2) <= 1
+    return mask  # dtype=bool, shape=(H,W)
+
 def read_intrinsics_text(path):
     """
     Taken from https://github.com/colmap/colmap/blob/dev/scripts/python/read_write_model.py
@@ -91,11 +103,16 @@ def colmap_main(args):
         out_image_path.parent.mkdir(parents=True, exist_ok=True)
         
         # also generate valid region mask
-        mask = np.ones_like(undistorted_image[:, :, 0], dtype=np.uint8)*255
-        mask[mapx.T < 0] = 0
-        mask[mapx.T >= width_org] = 0
-        mask[mapy.T < 0] = 0
-        mask[mapy.T >= height_org] = 0
+        mask = np.ones_like(undistorted_image[:, :, 0], dtype=bool)
+        mask[mapx.T < 0] = False
+        mask[mapx.T >= width_org] = False
+        mask[mapy.T < 0] = False
+        mask[mapy.T >= height_org] = False
+        elliptical_mask = generate_elliptical_mask_bool(height_org, width_org)
+
+        # combine masks
+        mask = mask & elliptical_mask
+        mask = mask.astype(np.uint8) * 255
         
         # assign the alpha channel
         undistorted_image = np.concatenate([undistorted_image, mask[:, :, None]], axis=2)

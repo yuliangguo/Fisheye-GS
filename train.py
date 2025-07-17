@@ -19,6 +19,9 @@ import torch
 from colorama import Back, Fore, Style
 from tqdm import tqdm
 
+import cv2
+import numpy as np
+
 import wandb
 from arguments import ModelParams, OptimizationParams, PipelineParams
 from gaussian_renderer import network_gui, render
@@ -33,7 +36,7 @@ try:
 except ImportError:
     TENSORBOARD_FOUND = False
 
-def training(args, dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
+def training(args, dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from, mask_path=None):
     if args.camera_model == "FISHEYE":
         is_fisheye = True
     elif args.camera_model == "PINHOLE":
@@ -59,6 +62,11 @@ def training(args, dataset, opt, pipe, testing_iterations, saving_iterations, ch
     ema_loss_for_log = 0.0
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
+
+    print("mask_path:", mask_path)
+    valid_mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+    valid_mask = np.repeat(valid_mask[None, ...], 3, axis=0)
+    valid_mask = torch.tensor(valid_mask)
 
     if args.wandb:
         wandb.init(project="gaussian_splatting", name=args.model_path.split('/')[-1])
@@ -107,7 +115,7 @@ def training(args, dataset, opt, pipe, testing_iterations, saving_iterations, ch
                 pipe.debug = True
             render_pkg = render(viewpoint_cam, gaussians, pipe, background)
             image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
-
+            image[valid_mask == 0] = 0.0
             # Loss
             gt_image = viewpoint_cam.original_image.cuda()
             gt_alpha_mask = viewpoint_cam.gt_alpha_mask.cuda() if viewpoint_cam.gt_alpha_mask is not None else None
@@ -142,7 +150,7 @@ def training(args, dataset, opt, pipe, testing_iterations, saving_iterations, ch
                 wandb.log({"Loss": ema_loss_for_log, "PSNR": ps, "NUM": len(gaussians._xyz)})
 
             # Log and save
-            training_report(tb_writer, iteration, Ll1, loss, l1_loss, iter_start.elapsed_time(iter_end), testing_iterations, scene, render, (pipe, background))
+            training_report(tb_writer, iteration, Ll1, loss, l1_loss, iter_start.elapsed_time(iter_end), testing_iterations, scene, render, (pipe, background), valid_mask)
             if (iteration in saving_iterations):
                 print("\n[ITER {}] Saving Gaussians".format(iteration))
                 scene.save(iteration)
@@ -191,7 +199,7 @@ def prepare_output_and_logger(args):
         print("Tensorboard not available: not logging progress")
     return tb_writer
 
-def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_iterations, scene : Scene, renderFunc, renderArgs):
+def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_iterations, scene : Scene, renderFunc, renderArgs, valid_mask=None):
     if tb_writer:
         tb_writer.add_scalar('train_loss_patches/l1_loss', Ll1.item(), iteration)
         tb_writer.add_scalar('train_loss_patches/total_loss', loss.item(), iteration)
@@ -209,6 +217,8 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
                 psnr_test = 0.0
                 for idx, viewpoint in enumerate(config['cameras']):
                     image = torch.clamp(renderFunc(viewpoint, scene.gaussians, *renderArgs)["render"], 0.0, 1.0)
+                    if valid_mask is not None:
+                        image[valid_mask == 0] = 0.0
                     gt_image = torch.clamp(viewpoint.original_image.to("cuda"), 0.0, 1.0)
                     if tb_writer and (idx < 5):
                         tb_writer.add_images(config['name'] + "_view_{}/render".format(viewpoint.image_name), image[None], global_step=iteration)
@@ -246,6 +256,8 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--start_checkpoint", type=str, default = None)
     parser.add_argument("--train_random_background", action="store_true", default=False)
+    parser.add_argument("--mask_path", type=str, default = None)
+
     args = parser.parse_args(sys.argv[1:])
     args.save_iterations.append(args.iterations)
     
@@ -259,7 +271,7 @@ if __name__ == "__main__":
     # Start GUI server, configure and run training
     # network_gui.init(args.ip, args.port)
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
-    training(args, lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from)
+    training(args, lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from, args.mask_path)
 
     # All done
     print("\nTraining complete.")

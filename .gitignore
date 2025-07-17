@@ -1,6 +1,6 @@
 *.pyc
 .vscode
-output
+output*
 output/
 SIBR_viewers
 SIBR_viewers/
